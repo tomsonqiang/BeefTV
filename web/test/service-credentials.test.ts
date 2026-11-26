@@ -183,3 +183,21 @@ test("AK/SK cannot share one connection with bearer credentials", () => {
         expect(serviceConnectionError(mixed)).toContain("请拆成两个连接");
     }
 });
+
+test("a header-authenticated protocol names the secret field after that header", () => {
+    const protocols = [{ value: "kreadoai-agent-art-image", capability: "image", enabled: true, authType: "header", authHeader: "apiToken" } as ModelProtocolDefinition];
+    const empty = serviceCredentialGuide(channel({
+        baseUrl: "https://api.kreadoai.com/mcp/agentart/v1/mcp",
+        interfaceType: "kreadoai-agent-art-image",
+        models: [],
+    }), protocols);
+    expect(empty.apiKeyLabel).toBe("apiToken");
+    expect(empty.apiKeyHelp).toContain("不会写进网址");
+    const selected = serviceCredentialGuide(channel({
+        baseUrl: "https://api.kreadoai.com/mcp/agentart/v1/mcp",
+        interfaceType: "kreadoai-agent-art-image",
+        models: ["1022"],
+        modelProfiles: [{ model: "1022", capability: "image", protocol: "kreadoai-agent-art-image" }],
+    }), protocols);
+    expect(selected.apiKeyLabel).toBe("apiToken");
+});

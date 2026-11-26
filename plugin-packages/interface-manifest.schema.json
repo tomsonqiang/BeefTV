@@ -62,7 +62,9 @@
         "query": { "type": "object" },
         "body": { "description": "请求体模板，用 $ref、$coalesce、$map 等表达式取统一请求里的字段。" },
         "fields": { "type": "object" },
-        "files": { "type": "array" }
+        "files": { "type": "array" },
+        "transport": { "type": "string", "description": "留空走 HTTP。mcp 表示由宿主对渠道地址发起 MCP tools/call，path 不参与拼地址。" },
+        "tool": { "type": "string", "description": "MCP 工具名。transport 为 mcp 时必填。" }
       }
     },
     "provider": {
@@ -130,6 +132,20 @@
           "items": { "type": "object", "required": ["assert", "message"], "properties": { "assert": {}, "message": { "type": "string" } } }
         },
         "variables": { "type": "array" },
+        "models": {
+          "type": "array",
+          "description": "读取模型时直接展示的固定目录，宿主不为此请求上游。",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "label": { "type": "string" },
+              "capability": { "$ref": "#/$defs/capability" }
+            },
+            "additionalProperties": false
+          }
+        },
         "create": { "$ref": "#/$defs/operation" },
         "agent": { "$ref": "#/$defs/operation" },
         "poll": { "$ref": "#/$defs/operation" },

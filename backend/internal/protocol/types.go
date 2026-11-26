@@ -123,6 +123,9 @@ type RequestSpec struct {
 	Body              any                 `json:"body,omitempty"`
 	Files             []RequestFilePart   `json:"files,omitempty"`
 	Auth              ManifestAuth        `json:"auth,omitempty"`
+	// Transport 为空表示 HTTP。mcp 时宿主调用 Tool，不把 Path 拼进上游地址。
+	Transport string `json:"transport,omitempty"`
+	Tool      string `json:"tool,omitempty"`
 }
 
 type RequestFilePart struct {
@@ -320,28 +323,49 @@ type ManifestContributions struct {
 	Extensions  []string             `json:"extensions,omitempty"`
 }
 
+// ManifestCatalogModel 是插件声明的固定模型，设置页读取目录时直接使用。
+type ManifestCatalogModel struct {
+	ID         string `json:"id"`
+	Label      string `json:"label,omitempty"`
+	Capability string `json:"capability,omitempty"`
+}
+
+// CatalogModel 是宿主从插件读到的模型目录项。
+type CatalogModel struct {
+	ID          string
+	DisplayName string
+	Capability  string
+}
+
+// StaticModelSource 由声明了固定模型目录的协议实现。没有这项时仍走原来的上游目录请求。
+type StaticModelSource interface {
+	StaticModels() []CatalogModel
+}
+
 type ManifestProvider struct {
-	Variables               []ManifestVariable     `json:"variables,omitempty"`
-	ID                      string                 `json:"id"`
-	Label                   string                 `json:"label"`
-	LegacyAliases           []string               `json:"legacyAliases,omitempty"` // retired IDs saved config may still name; options under them still apply
-	Presets                 []ManifestPreset       `json:"presets,omitempty"`       // services that speak this interface; shown as one-click choices
-	Capabilities            []Capability           `json:"capabilities"`
-	Scopes                  []Surface              `json:"scopes"`
-	BaseURL                 string                 `json:"baseUrl,omitempty"`
-	RequiresPublicMediaURLs bool                   `json:"requiresPublicMediaUrls,omitempty"`
-	MediaTransport          map[string]string      `json:"mediaTransport,omitempty"`
-	MediaUpload             *ManifestMediaUpload   `json:"mediaUpload,omitempty"`
-	Auth                    ManifestAuth           `json:"auth,omitempty"`
-	Parameters              []Parameter            `json:"parameters,omitempty"`
-	Validations             []ManifestValidation   `json:"validations,omitempty"`
-	Create                  ManifestOperation      `json:"create"`
-	Agent                   *ManifestOperation     `json:"agent,omitempty"`
-	Poll                    *ManifestOperation     `json:"poll,omitempty"`
-	Cancel                  *ManifestOperation     `json:"cancel,omitempty"`
-	Result                  *ManifestOperation     `json:"result,omitempty"`
-	Response                ManifestResponse       `json:"response"`
-	AgentResponse           *ManifestAgentResponse `json:"agentResponse,omitempty"`
+	Variables               []ManifestVariable   `json:"variables,omitempty"`
+	ID                      string               `json:"id"`
+	Label                   string               `json:"label"`
+	LegacyAliases           []string             `json:"legacyAliases,omitempty"` // retired IDs saved config may still name; options under them still apply
+	Presets                 []ManifestPreset     `json:"presets,omitempty"`       // services that speak this interface; shown as one-click choices
+	Capabilities            []Capability         `json:"capabilities"`
+	Scopes                  []Surface            `json:"scopes"`
+	BaseURL                 string               `json:"baseUrl,omitempty"`
+	RequiresPublicMediaURLs bool                 `json:"requiresPublicMediaUrls,omitempty"`
+	MediaTransport          map[string]string    `json:"mediaTransport,omitempty"`
+	MediaUpload             *ManifestMediaUpload `json:"mediaUpload,omitempty"`
+	Auth                    ManifestAuth         `json:"auth,omitempty"`
+	Parameters              []Parameter          `json:"parameters,omitempty"`
+	Validations             []ManifestValidation `json:"validations,omitempty"`
+	Create                  ManifestOperation    `json:"create"`
+	// Models 是设置页「读取模型」直接展示的固定目录，宿主不为此请求上游。
+	Models        []ManifestCatalogModel `json:"models,omitempty"`
+	Agent         *ManifestOperation     `json:"agent,omitempty"`
+	Poll          *ManifestOperation     `json:"poll,omitempty"`
+	Cancel        *ManifestOperation     `json:"cancel,omitempty"`
+	Result        *ManifestOperation     `json:"result,omitempty"`
+	Response      ManifestResponse       `json:"response"`
+	AgentResponse *ManifestAgentResponse `json:"agentResponse,omitempty"`
 	// Module 指向插件包内实现 submit/query 的 JS 文件；写了它就不写 create/poll。
 	Module string `json:"module,omitempty"`
 }
@@ -463,6 +487,12 @@ func firstNonEmptyText(values ...string) string {
 }
 
 func (r RequestSpec) Validate() error {
+	if strings.EqualFold(strings.TrimSpace(r.Transport), "mcp") {
+		if strings.TrimSpace(r.Tool) == "" {
+			return fmt.Errorf("protocol MCP request is missing a tool name")
+		}
+		return nil
+	}
 	if r.Method == "" || r.Path == "" {
 		return fmt.Errorf("protocol request spec is incomplete")
 	}

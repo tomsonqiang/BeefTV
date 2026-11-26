@@ -261,7 +261,34 @@ func buildManifestOperation(operation ManifestOperation, auth ManifestAuth, requ
 		return RequestSpec{}, fmt.Errorf("evaluate request content type: %w", err)
 	}
 	contentType := defaultValue(manifestString(evaluatedContentType), "application/json")
-	return RequestSpec{Method: strings.ToUpper(operation.Method), Path: path, DefaultPathPrefix: operation.DefaultPathPrefix, OriginPath: operation.OriginPath, ContentType: contentType, Headers: headers, Query: query, Body: body, Files: files, Auth: auth}, nil
+	return RequestSpec{
+		Method: strings.ToUpper(operation.Method), Path: path, DefaultPathPrefix: operation.DefaultPathPrefix, OriginPath: operation.OriginPath,
+		ContentType: contentType, Headers: headers, Query: query, Body: body, Files: files, Auth: auth,
+		Transport: strings.ToLower(strings.TrimSpace(operation.Transport)), Tool: strings.TrimSpace(operation.Tool),
+	}, nil
+}
+
+func (a manifestAdapter) StaticModels() []CatalogModel {
+	providerID := a.manifest.Metadata.ID
+	for _, provider := range a.manifest.Contributes.Providers {
+		if provider.ID != providerID {
+			continue
+		}
+		models := make([]CatalogModel, 0, len(provider.Models))
+		for _, item := range provider.Models {
+			id := strings.TrimSpace(item.ID)
+			if id == "" {
+				continue
+			}
+			capability := strings.TrimSpace(item.Capability)
+			if capability == "" && len(provider.Capabilities) == 1 {
+				capability = string(provider.Capabilities[0])
+			}
+			models = append(models, CatalogModel{ID: id, DisplayName: strings.TrimSpace(item.Label), Capability: capability})
+		}
+		return models
+	}
+	return nil
 }
 
 func evaluateManifestStringMap(values map[string]any, env map[string]any) (map[string]string, error) {

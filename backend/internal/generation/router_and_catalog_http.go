@@ -404,6 +404,11 @@ func FetchChannelModelCatalog(
 			if provider, ok := adapter.(protocol.ModuleProvider); ok {
 				return ListModuleProviderModels(ctx, provider, channelurl.CleanBase(input.BaseURL), strings.TrimSpace(input.APIKey))
 			}
+			if source, ok := adapter.(protocol.StaticModelSource); ok {
+				if listed := staticCatalogModels(source.StaticModels()); len(listed) > 0 {
+					return listed, nil
+				}
+			}
 		}
 	}
 	headers, err := outbound.NormalizeOutboundHeaders(input.Headers)
@@ -415,6 +420,25 @@ func FetchChannelModelCatalog(
 		return nil, MapChannelModelCatalogError(err)
 	}
 	return catalog, nil
+}
+
+func staticCatalogModels(models []protocol.CatalogModel) []modelcatalog.ChannelModelCatalogItem {
+	items := make([]modelcatalog.ChannelModelCatalogItem, 0, len(models))
+	seen := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		items = append(items, modelcatalog.ChannelModelCatalogItem{
+			ID: id, DisplayName: strings.TrimSpace(model.DisplayName), ModelType: modelcatalog.NormalizeCatalogModelType(model.Capability),
+		})
+	}
+	return items
 }
 
 func FetchChannelModelCatalogBytes(ctx context.Context, baseURL, apiFormat, apiKey string, headers []modelcatalog.ChannelHeader) ([]byte, error) {

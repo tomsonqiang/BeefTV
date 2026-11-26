@@ -321,6 +321,12 @@ func ExecuteProtocolVideoFileRequest(ctx context.Context, config Config, spec pr
 }
 
 func ExecuteProtocolBinaryRequestWithConsumer(ctx context.Context, config Config, spec protocol.RequestSpec, consume func(string, []byte)) ([]byte, string, error) {
+	if strings.EqualFold(strings.TrimSpace(spec.Transport), "mcp") {
+		if consume != nil {
+			return nil, "", RequestPreparationError{Cause: fmt.Errorf("MCP 出站不支持流式响应")}
+		}
+		return executeMCPTool(ctx, config, spec)
+	}
 	req, err := buildProtocolHTTPRequest(ctx, config, spec)
 	if err != nil {
 		return nil, "", err

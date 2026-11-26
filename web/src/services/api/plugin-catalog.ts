@@ -16,6 +16,7 @@ type PluginProviderCatalogItem = {
     unavailableReason?: string;
     baseUrl?: string;
     authType?: string;
+    authHeader?: string;
     module?: boolean;
     aliases?: string[];
     presets?: Array<{ id: string; label: string; baseUrl: string }>;
@@ -69,6 +70,7 @@ function toProviderDefinition(item: PluginProviderCatalogItem, capability: Proto
         enabled: item.enabled && !item.unavailableReason && !item.retired,
         baseUrl: item.baseUrl,
         authType: item.authType,
+        authHeader: item.authHeader,
         workflows: item.workflows || [],
         module: item.module,
         aliases: item.aliases,

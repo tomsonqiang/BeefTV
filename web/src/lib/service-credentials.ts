@@ -114,12 +114,23 @@ function arkKeyKindFromPath(baseUrl: string): ServiceCredentialKind | undefined 
     return /^\/api\/plan(\/|$)/.test(url.pathname) ? "ark-agent-plan" : "ark-native";
 }
 
+function protocolHeaderName(protocol: string | undefined, protocols: ModelProtocolDefinition[]): string | undefined {
+    const header = protocols.find((item) => item.value === protocol && item.authType === "header")?.authHeader?.trim();
+    return header || undefined;
+}
+
 export function serviceCredentialGuide(channel: CredentialChannel, protocols: ModelProtocolDefinition[] = []): ServiceCredentialGuide {
     const kinds = new Set<ServiceCredentialKind>();
     const signatureAuths = new Set<string>();
+    const headerNames = new Set<string>();
+    const noteHeader = (protocol?: string) => {
+        const header = protocolHeaderName(protocol, protocols);
+        if (header) headerNames.add(header);
+    };
     for (const model of channel.models || []) {
         const profile = channel.modelProfiles?.find((item) => item.model === model);
         const protocol = profile?.protocol || channel.interfaceType;
+        noteHeader(protocol);
         const authType = protocolAuthType(protocol, profile?.authType, protocols);
         const declared = protocolCredentialKind(protocol, authType);
         // 通用文本协议本身不占凭证类型；在方舟主机上按地址判断它用的是哪一类 Key。
@@ -139,6 +150,8 @@ export function serviceCredentialGuide(channel: CredentialChannel, protocols: Mo
         // 混用时字段说明和下方提示会重复，只留下面那一条。
         return { kind: "mixed", apiKeyLabel: "API Key", apiKeyPlaceholder: "粘贴你的 API Key", apiKeyHelp: "", secretKeyLabel: "Secret Key（SK）", secretKeyRequired: false, conflict };
     }
+    if (!channel.models?.length) noteHeader(channel.interfaceType);
+    const [onlyHeader] = headerNames.size === 1 ? [...headerNames] : [];
     // 还没选模型时只靠域名判断：即梦开放平台只有 AK/SK 一种凭证。
     const [signatureAuth] = signatureAuths.size ? [...signatureAuths] : !awaitingCredential && isJimengHost(channel.baseUrl) ? ["volcengine-v4"] : [];
     if (signatureAuth) {
@@ -147,6 +160,16 @@ export function serviceCredentialGuide(channel: CredentialChannel, protocols: Mo
     }
     if (kinds.has("ark-agent-plan")) return { kind: "ark-agent-plan", apiKeyLabel: "Agent Plan 专属 Key", apiKeyPlaceholder: "粘贴 Agent Plan 专属 Key", apiKeyHelp: ARK_AGENT_PLAN_HELP, secretKeyLabel: "Secret Key（SK）", secretKeyRequired: false };
     if (kinds.has("ark-native")) return { kind: "ark-native", apiKeyLabel: "方舟 API Key", apiKeyPlaceholder: "粘贴方舟 API Key", apiKeyHelp: ARK_NATIVE_HELP, secretKeyLabel: "Secret Key（SK）", secretKeyRequired: false };
+    if (onlyHeader) {
+        return {
+            kind: "standard",
+            apiKeyLabel: onlyHeader,
+            apiKeyPlaceholder: "粘贴 api秘钥",
+            apiKeyHelp: `这个值会作为请求头 ${onlyHeader} 发给服务地址，不会写进网址。`,
+            secretKeyLabel: "Secret Key（SK）",
+            secretKeyRequired: false,
+        };
+    }
     // 无需鉴权的插件服务可以明确提示密钥可留空。
     const pluginService = protocols.find((item) => item.module && item.value === channel.interfaceType);
     const apiKeyHelp = pluginService ? (pluginService.authType === "none" ? "这个服务不用密钥，可以留空。" : "")

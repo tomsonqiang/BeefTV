@@ -25,6 +25,7 @@ type ProviderCatalogItem struct {
 	ContentType       string                      `json:"contentType,omitempty"`
 	BaseURL           string                      `json:"baseUrl,omitempty"`
 	AuthType          string                      `json:"authType,omitempty"`
+	AuthHeader        string                      `json:"authHeader,omitempty"`
 	Enabled           bool                        `json:"enabled"`
 	UnavailableReason string                      `json:"unavailableReason,omitempty"`
 	Workflows         []protocol.ManifestWorkflow `json:"workflows,omitempty"`
@@ -56,8 +57,8 @@ func (s *Service) ProviderCatalog(scope, capability string, includeUnavailable b
 				ID: provider.ID, Aliases: provider.LegacyAliases, Presets: provider.Presets, Version: plugin.Manifest.Version, Name: provider.Label, Vendor: plugin.Manifest.Author,
 				Description: strings.TrimSpace(plugin.Manifest.Description),
 				Categories:  provider.Capabilities, Scopes: provider.Scopes, BaseURL: provider.BaseURL,
-				AuthType: provider.Auth.Type,
-				Enabled:  plugin.Status == StatusEnabled, UnavailableReason: plugin.Error,
+				AuthType: provider.Auth.Type, AuthHeader: strings.TrimSpace(provider.Auth.Header),
+				Enabled: plugin.Status == StatusEnabled, UnavailableReason: plugin.Error,
 				Workflows:     workflowsForProvider(plugin.Manifest.Contributes.Workflows, provider.ID, provider.Capabilities, wantCapability),
 				Retired:       plugin.Retention != nil && plugin.Retention.Retired,
 				RetiredReason: retentionReason(plugin.Retention),
