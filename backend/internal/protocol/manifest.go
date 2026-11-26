@@ -21,6 +21,10 @@ type ManifestOperation struct {
 	Body                any                `json:"body,omitempty"`
 	Fields              map[string]string  `json:"fields,omitempty"`
 	Files               []ManifestFilePart `json:"files,omitempty"`
+	// Transport 为空时走 HTTP。mcp 表示由宿主对渠道地址发起 MCP tools/call，Path 不参与拼 URL。
+	Transport string `json:"transport,omitempty"`
+	// Tool 是 MCP 工具名。只在 Transport 为 mcp 时使用。
+	Tool string `json:"tool,omitempty"`
 }
 
 type ManifestFilePart struct {
@@ -254,6 +258,11 @@ func ValidateManifest(manifest Manifest) error {
 		if err := validateProviderSurface(provider); err != nil {
 			return err
 		}
+		for _, catalogModel := range provider.Models {
+			if strings.TrimSpace(catalogModel.ID) == "" {
+				return fmt.Errorf("provider %q declares a model without an id", provider.ID)
+			}
+		}
 		if strings.TrimSpace(provider.Module) != "" {
 			if err := validateModuleProvider(provider); err != nil {
 				return fmt.Errorf("provider %q: %w", provider.ID, err)
@@ -398,6 +407,9 @@ func hasNonProviderContribution(contributes ManifestContributions) bool {
 }
 
 func operationSummary(operation ManifestOperation) string {
+	if strings.EqualFold(strings.TrimSpace(operation.Transport), "mcp") {
+		return "MCP " + strings.TrimSpace(operation.Tool)
+	}
 	path := strings.ReplaceAll(operation.Path, "{{model}}", "{model}")
 	path = strings.ReplaceAll(path, "{{taskId}}", "{task_id}")
 	return strings.ToUpper(operation.Method) + " " + path
@@ -413,6 +425,16 @@ func operationSummaryPtr(operation *ManifestOperation) string {
 func validateManifestOperation(operation ManifestOperation) error {
 	if prefix := operation.DefaultPathPrefix; prefix != "" && (!isRelativePath(prefix) || strings.Contains(prefix, "..") || strings.ContainsAny(prefix, "?#\\")) {
 		return fmt.Errorf("invalid default path prefix")
+	}
+	transport := strings.ToLower(strings.TrimSpace(operation.Transport))
+	if transport != "" && transport != "mcp" {
+		return fmt.Errorf("unsupported operation transport %q", operation.Transport)
+	}
+	if transport == "mcp" {
+		tool := strings.TrimSpace(operation.Tool)
+		if !validManifestIdentifier(tool) {
+			return fmt.Errorf("mcp tool name is invalid")
+		}
 	}
 	method := strings.ToUpper(strings.TrimSpace(operation.Method))
 	if method != http.MethodGet && method != http.MethodPost && method != http.MethodDelete && method != http.MethodPut {
